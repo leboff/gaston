@@ -239,6 +239,12 @@ returns an authed `Agent`, or null. Session cookie via iron-session
   dokploy, chosen over Nixpacks because the native `better-sqlite3` module builds
   reliably in a controlled Debian-slim image. Persistent volume at `/app/data`
   for the OAuth SQLite store; `PUBLIC_URL` must be the public HTTPS origin.
+- **Dokploy = deploy as a Compose service, NOT an "Application."** Dokploy runs
+  Applications as Docker **Swarm services** (VIP/overlay LB); on hosts where that
+  overlay LB is flaky, Traefik 502s even though the container is healthy
+  (reachable by direct container IP but not via the service VIP). Compose deploys
+  it as a plain container Traefik reaches by direct DNS — no VIP. `docker-compose.yml`
+  attaches to the external `dokploy-network` for this. See `DEPLOY.md`.
 
 ## Preferences (owner)
 
