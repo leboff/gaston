@@ -137,7 +137,7 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex min-w-0 min-h-0 flex-1 flex-col">
       <header className="flex items-center justify-between gap-3 border-b border-black/10 dark:border-white/10 px-5 py-3">
         <Breadcrumbs trail={trail} onNavigate={selectNode} />
         <ModelPicker />
@@ -146,7 +146,7 @@ export function ChatView() {
       <div
         ref={scrollRef}
         onMouseUp={handleMouseUp}
-        className="flex-1 space-y-4 overflow-y-auto px-5 py-6"
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-6"
       >
         {node.anchor && (
           <p className="mx-auto max-w-2xl rounded-lg bg-amber-100/60 dark:bg-amber-500/10 px-3 py-2 text-center text-sm text-amber-900 dark:text-amber-200">

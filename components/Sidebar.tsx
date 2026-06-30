@@ -61,7 +61,7 @@ export function Sidebar() {
   );
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-black/10 dark:border-white/10">
+    <aside className="flex min-h-0 w-64 shrink-0 flex-col border-r border-black/10 dark:border-white/10">
       <div className="p-3">
         <button
           onClick={newRootChat}
