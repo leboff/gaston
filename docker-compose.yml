@@ -1,33 +1,48 @@
-# Compose file for Gaston. Dokploy can deploy this directly (Compose app type)
-# or you can deploy the Dockerfile alone — either way the important bits are the
-# persistent volume at /app/data and the two required env vars.
+# Dokploy "Docker Compose" deployment for Gaston — the RECOMMENDED path.
+#
+# Why Compose and not a dokploy "Application": dokploy runs Applications as
+# Docker *Swarm services*, which route through a Swarm VIP / overlay load
+# balancer. On some hosts that overlay LB fails to register the backend, so
+# Traefik gets a 502 even though the container is healthy (reachable by its
+# direct IP but not via the service VIP). Deploying as Compose makes gaston a
+# plain container that Traefik reaches by *direct container DNS* on
+# dokploy-network — no Swarm VIP/IPVS involved.
+#
+# In the dokploy UI: create a "Docker Compose" service from this repo, set the
+# two env vars below, add the domain (gaston.leboff.co) targeting port 3000,
+# and deploy. Dokploy generates the Traefik route to this container.
 services:
   gaston:
     build:
       context: .
       dockerfile: Dockerfile
-    image: gaston
     restart: unless-stopped
-    ports:
-      - "3000:3000"
     environment:
       NODE_ENV: production
       # >= 32 chars. Generate with: openssl rand -base64 32
       COOKIE_SECRET: ${COOKIE_SECRET:?set COOKIE_SECRET}
-      # MUST be the public HTTPS origin in prod, e.g. https://gaston.example.com
+      # MUST be the public HTTPS origin, e.g. https://gaston.leboff.co
       # (drives the atproto OAuth client metadata + redirect URI).
       PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL}
     volumes:
       # Persists the atproto OAuth token store (data/auth.sqlite) across deploys.
       - gaston-data:/app/data
+    # Join the shared dokploy/Traefik network so Traefik can resolve this
+    # container by DNS and route to it on port 3000.
+    networks:
+      - dokploy-network
     healthcheck:
-      # /api/me returns {"did":null} unauthenticated — proves the server +
-      # better-sqlite3 are up.
+      # /api/me returns {"did":null} unauthenticated — proves server + sqlite up.
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/me').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 20s
+
+networks:
+  # Created and managed by dokploy; we only attach to it.
+  dokploy-network:
+    external: true
 
 volumes:
   gaston-data:
