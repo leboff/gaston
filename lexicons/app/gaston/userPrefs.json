@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "app.gaston.userPrefs",
+  "description": "Per-user Gaston preferences: personalization instructions and manual memory notes injected into every prompt. The payload is encrypted client-side (AES-GCM); the PDS and server only ever see ciphertext. Singleton record (rkey 'self').",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "required": ["enc", "salt", "iv", "updatedAt"],
+        "properties": {
+          "enc": {
+            "type": "string",
+            "description": "Base64 AES-GCM ciphertext of the JSON { personalization, memory } payload.",
+            "maxLength": 200000
+          },
+          "salt": {
+            "type": "string",
+            "description": "Base64 PBKDF2 salt used to derive the AES key from the user's passphrase. Not secret."
+          },
+          "iv": {
+            "type": "string",
+            "description": "Base64 AES-GCM initialization vector. Not secret."
+          },
+          "createdAt": { "type": "string", "format": "datetime" },
+          "updatedAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

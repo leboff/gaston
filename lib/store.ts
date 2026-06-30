@@ -2,12 +2,22 @@
 
 import { create } from "zustand";
 import type { ChatNode, ChatNodeRecord, ChatMessage } from "@/types/chat";
+import type { UserPrefsRecord, UserPrefsPlain } from "@/types/prefs";
 import type { OpenRouterModel } from "@/lib/openrouter";
 import { KEY_HEADER } from "@/lib/openrouter";
 import { streamChat, type ApiMessage } from "@/lib/chatClient";
+import {
+  deriveKey,
+  encryptJson,
+  decryptJson,
+  exportKeyB64,
+  importKeyB64,
+  newSaltB64,
+} from "@/lib/crypto";
 
 const LS_KEY = "gaston.openrouter.key";
 const LS_MODEL = "gaston.model";
+const LS_PREFS_KEY = "gaston.prefs.key";
 const DEFAULT_MODEL = "openai/gpt-4o-mini";
 
 function uid() {
@@ -50,9 +60,18 @@ interface StoreState {
   streamingText: string;
   error: string | null;
 
+  // Personalization + memory (decrypted in memory; stored encrypted in the PDS).
+  personalization: string;
+  memory: string;
+  prefsRecord: UserPrefsRecord | null; // the fetched encrypted blob (for salt/iv)
+  prefsKey: CryptoKey | null; // in-memory AES key once unlocked
+  prefsLocked: boolean; // a record exists but we have no key to decrypt it
+
   bootstrap: () => Promise<void>;
   setApiKey: (key: string) => void;
   setModel: (model: string) => void;
+  unlockPrefs: (passphrase: string) => Promise<boolean>;
+  savePrefs: (plain: UserPrefsPlain, passphrase?: string) => Promise<boolean>;
   selectNode: (rkey: string | null) => void;
   newRootChat: () => Promise<void>;
   sendMessage: (text: string) => Promise<void>;
@@ -86,6 +105,20 @@ function contextMessage(node: ChatNode, nodes: ChatNode[]): ApiMessage | null {
   };
 }
 
+/** A leading system message carrying the user's personalization + memory. */
+function personalizationMessage(
+  personalization: string,
+  memory: string,
+): ApiMessage | null {
+  const p = personalization.trim();
+  const m = memory.trim();
+  if (!p && !m) return null;
+  const parts: string[] = [];
+  if (p) parts.push(`The user gave you these custom instructions:\n${p}`);
+  if (m) parts.push(`Things to remember about the user:\n${m}`);
+  return { role: "system", content: parts.join("\n\n") };
+}
+
 async function persistNode(node: ChatNode): Promise<ChatNode> {
   const res = await fetch(`/api/repo/nodes/${node.rkey}`, {
     method: "PUT",
@@ -106,6 +139,11 @@ export const useStore = create<StoreState>((set, get) => ({
   streaming: false,
   streamingText: "",
   error: null,
+  personalization: "",
+  memory: "",
+  prefsRecord: null,
+  prefsKey: null,
+  prefsLocked: false,
 
   bootstrap: async () => {
     // Restore BYOK key + model from the browser.
@@ -124,8 +162,9 @@ export const useStore = create<StoreState>((set, get) => ({
     }
     set({ me: { did: me.did, handle: me.handle } });
 
-    const [nodesRes] = await Promise.all([
+    const [nodesRes, prefsRes] = await Promise.all([
       fetch("/api/repo/nodes"),
+      fetch("/api/repo/prefs"),
       get().apiKey ? fetchModels(set) : Promise.resolve(),
     ]);
     const { nodes } = (await nodesRes.json()) as { nodes: ChatNode[] };
@@ -136,6 +175,37 @@ export const useStore = create<StoreState>((set, get) => ({
         roots.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]?.rkey ??
         null,
     });
+
+    // Load personalization/memory: fetch the encrypted record, then try the
+    // on-device cached key. No record → nothing to unlock. Record but no/!working
+    // cached key → locked (user enters passphrase in Settings).
+    const { prefs } = (await prefsRes.json()) as { prefs: UserPrefsRecord | null };
+    if (!prefs) {
+      set({ prefsRecord: null, prefsLocked: false });
+    } else {
+      set({ prefsRecord: prefs });
+      const cached =
+        (typeof localStorage !== "undefined" &&
+          localStorage.getItem(LS_PREFS_KEY)) ||
+        "";
+      let unlocked = false;
+      if (cached) {
+        try {
+          const key = await importKeyB64(cached);
+          const plain = await decryptJson<UserPrefsPlain>(key, prefs.enc, prefs.iv);
+          set({
+            prefsKey: key,
+            personalization: plain.personalization ?? "",
+            memory: plain.memory ?? "",
+            prefsLocked: false,
+          });
+          unlocked = true;
+        } catch {
+          // Stale/wrong cached key — fall back to locked.
+        }
+      }
+      if (!unlocked) set({ prefsLocked: true });
+    }
   },
 
   setApiKey: (key) => {
@@ -147,6 +217,65 @@ export const useStore = create<StoreState>((set, get) => ({
   setModel: (model) => {
     localStorage.setItem(LS_MODEL, model);
     set({ model });
+  },
+
+  unlockPrefs: async (passphrase) => {
+    const record = get().prefsRecord;
+    if (!record) return false;
+    try {
+      const key = await deriveKey(passphrase, record.salt);
+      const plain = await decryptJson<UserPrefsPlain>(key, record.enc, record.iv);
+      localStorage.setItem(LS_PREFS_KEY, await exportKeyB64(key));
+      set({
+        prefsKey: key,
+        personalization: plain.personalization ?? "",
+        memory: plain.memory ?? "",
+        prefsLocked: false,
+        error: null,
+      });
+      return true;
+    } catch {
+      // AES-GCM auth failure → wrong passphrase.
+      return false;
+    }
+  },
+
+  savePrefs: async (plain, passphrase) => {
+    // Need a key: reuse the unlocked one, or derive a fresh one from the
+    // passphrase (first-time setup, or re-keying with a new passphrase).
+    let key = get().prefsKey;
+    let salt = get().prefsRecord?.salt ?? null;
+    if (passphrase) {
+      salt = salt ?? newSaltB64();
+      key = await deriveKey(passphrase, salt);
+    }
+    if (!key || !salt) {
+      set({ error: "Set a passphrase to enable personalization." });
+      return false;
+    }
+    try {
+      const { enc, iv } = await encryptJson(key, plain);
+      const res = await fetch("/api/repo/prefs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enc, salt, iv }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      const { prefs } = (await res.json()) as { prefs: UserPrefsRecord };
+      localStorage.setItem(LS_PREFS_KEY, await exportKeyB64(key));
+      set({
+        prefsRecord: prefs,
+        prefsKey: key,
+        personalization: plain.personalization,
+        memory: plain.memory,
+        prefsLocked: false,
+        error: null,
+      });
+      return true;
+    } catch {
+      set({ error: "Failed to save personalization to your repo." });
+      return false;
+    }
   },
 
   selectNode: (rkey) => set({ currentRkey: rkey, error: null }),
@@ -199,8 +328,10 @@ export const useStore = create<StoreState>((set, get) => ({
       error: null,
     }));
 
+    const pers = personalizationMessage(state.personalization, state.memory);
     const ctx = contextMessage(updated, get().nodes);
     const apiMessages: ApiMessage[] = [
+      ...(pers ? [pers] : []),
       ...(ctx ? [ctx] : []),
       ...updated.messages.map((m) => ({
         role: m.role as "user" | "assistant",
@@ -269,7 +400,17 @@ export const useStore = create<StoreState>((set, get) => ({
 
   logout: async () => {
     await fetch("/oauth/logout", { method: "POST" });
-    set({ me: null, nodes: [], currentRkey: null });
+    localStorage.removeItem(LS_PREFS_KEY);
+    set({
+      me: null,
+      nodes: [],
+      currentRkey: null,
+      personalization: "",
+      memory: "",
+      prefsRecord: null,
+      prefsKey: null,
+      prefsLocked: false,
+    });
   },
 }));
 
