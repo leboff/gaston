@@ -1,0 +1,33 @@
+# Compose file for Gaston. Dokploy can deploy this directly (Compose app type)
+# or you can deploy the Dockerfile alone — either way the important bits are the
+# persistent volume at /app/data and the two required env vars.
+services:
+  gaston:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gaston
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      # >= 32 chars. Generate with: openssl rand -base64 32
+      COOKIE_SECRET: ${COOKIE_SECRET:?set COOKIE_SECRET}
+      # MUST be the public HTTPS origin in prod, e.g. https://gaston.example.com
+      # (drives the atproto OAuth client metadata + redirect URI).
+      PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL}
+    volumes:
+      # Persists the atproto OAuth token store (data/auth.sqlite) across deploys.
+      - gaston-data:/app/data
+    healthcheck:
+      # /api/me returns {"did":null} unauthenticated — proves the server +
+      # better-sqlite3 are up.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/me').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  gaston-data:

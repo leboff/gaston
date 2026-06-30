@@ -121,7 +121,17 @@ returns an authed `Agent`, or null. Session cookie via iron-session
   SQLite token stores, repo CRUD (`listNodes/getNode/createNode/putNode`).
 - `app/api/**` and `app/oauth/**` — route handlers (chat, models, me, repo, oauth).
 - Components: `Sidebar`, `Breadcrumbs`, `ModelPicker`, `Settings`, `TopBar`,
-  `LoginScreen`.
+  `LoginScreen`, `ServiceWorkerRegister` (registers the PWA service worker).
+- **PWA**: `app/manifest.ts` (served at `/manifest.webmanifest`), `public/sw.js`
+  (app-shell service worker), `app/offline/page.tsx` (offline fallback),
+  `public/icons/*` (manifest icons; `icon.svg`/`maskable.svg` are the sources,
+  regenerate PNGs with `sharp`). Manifest/icons/`appleWebApp` are in
+  `app/layout.tsx`'s `metadata`; `themeColor` is in its `viewport` export.
+- **Deploy**: `Dockerfile` (multi-stage, standalone output), `.dockerignore`,
+  `docker-compose.yml`, `DEPLOY.md` (dokploy steps). `next.config.ts` enables
+  `output: "standalone"` ONLY when `BUILD_STANDALONE=1` (set by the Dockerfile),
+  because standalone is incompatible with `next start` — local
+  `npm run build && npm start` stays unaffected.
 
 ## Conventions & gotchas (important)
 
@@ -158,6 +168,15 @@ returns an authed `Agent`, or null. Session cookie via iron-session
   AES key is cached in `localStorage` (`gaston.prefs.key`) and **never** written to
   the PDS; losing the passphrase = unrecoverable data. The chat-injection order in
   `sendMessage` is `personalization → dig-in context → conversation`.
+- **Service worker (`public/sw.js`)** caches the static shell only. It MUST
+  bypass `/api/*`, `/oauth/*`, non-GET, and all cross-origin requests (so auth,
+  BYOK streaming, and PDS reads never come from cache). It registers only in
+  production (`ServiceWorkerRegister` checks `NODE_ENV`). Bump `CACHE_VERSION`
+  when you change cached assets.
+- **Prod deploy needs a persistent volume at `/app/data`** — the atproto OAuth
+  SQLite store (`data/auth.sqlite`) lives there; without a volume every redeploy
+  logs everyone out. `PUBLIC_URL` must equal the public HTTPS origin or OAuth
+  login breaks. See `DEPLOY.md`.
 
 ## Running & verifying
 
@@ -212,6 +231,14 @@ returns an authed `Agent`, or null. Session cookie via iron-session
   your PDS") and over plaintext (repos are public). Injected as a leading `system`
   message into every prompt. First version is manual memory only — no automatic
   LLM extraction.
+- **PWA**: installable + app-shell caching (manifest + icons + a `public/sw.js`
+  that caches the static shell and serves an `/offline` fallback). Deliberately
+  NOT full offline chat — chat streams from OpenRouter and reads the user's PDS,
+  so those requests are always network. SW registers only in production.
+- **Deploy**: Docker via Next standalone output (`output: "standalone"`) for
+  dokploy, chosen over Nixpacks because the native `better-sqlite3` module builds
+  reliably in a controlled Debian-slim image. Persistent volume at `/app/data`
+  for the OAuth SQLite store; `PUBLIC_URL` must be the public HTTPS origin.
 
 ## Preferences (owner)
 
