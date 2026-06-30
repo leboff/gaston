@@ -1,0 +1,53 @@
+{
+  "lexicon": 1,
+  "id": "app.gaston.chatNode",
+  "description": "A single node in a Gaston nested-chat tree. A node holds a linear conversation and may be anchored to a highlighted span of a message in its parent node.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["title", "model", "messages", "createdAt"],
+        "properties": {
+          "title": { "type": "string", "maxLength": 2000 },
+          "model": { "type": "string", "description": "OpenRouter model id used for this node." },
+          "parent": {
+            "type": "string",
+            "description": "rkey of the parent chatNode. Absent on root nodes."
+          },
+          "anchor": {
+            "type": "ref",
+            "ref": "#anchor",
+            "description": "The highlighted span in the parent this node sprang from."
+          },
+          "messages": {
+            "type": "array",
+            "items": { "type": "ref", "ref": "#message" }
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    },
+    "message": {
+      "type": "object",
+      "required": ["id", "role", "text", "createdAt"],
+      "properties": {
+        "id": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "assistant"] },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "datetime" }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "required": ["messageId", "text", "startUtf16", "endUtf16"],
+      "properties": {
+        "messageId": { "type": "string", "description": "id of the parent message containing the span." },
+        "text": { "type": "string", "description": "The highlighted substring (for drift validation)." },
+        "startUtf16": { "type": "integer", "description": "UTF-16 start offset into the message text." },
+        "endUtf16": { "type": "integer", "description": "UTF-16 end offset (exclusive)." }
+      }
+    }
+  }
+}
