@@ -122,6 +122,11 @@ returns an authed `Agent`, or null. Session cookie via iron-session
 - `app/api/**` and `app/oauth/**` — route handlers (chat, models, me, repo, oauth).
 - Components: `Sidebar`, `Breadcrumbs`, `ModelPicker`, `Settings`, `TopBar`,
   `LoginScreen`, `ServiceWorkerRegister` (registers the PWA service worker).
+  `Sidebar` is a static column at `md+` but an overlay drawer below `md`: its
+  open state lives in `app/page.tsx` (`sidebarOpen`), `TopBar` toggles it via a
+  hamburger (`md:hidden`), and selecting/creating a chat or tapping the backdrop
+  closes it. The drawer + backdrop are `absolute` inside the `relative` flex row
+  under `TopBar`.
 - **PWA**: `app/manifest.ts` (served at `/manifest.webmanifest`), `public/sw.js`
   (app-shell service worker), `app/offline/page.tsx` (offline fallback),
   `public/icons/*` (manifest icons; `icon.svg`/`maskable.svg` are the sources,
