@@ -49,7 +49,13 @@ function NodeRow({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({
+  open = false,
+  onClose,
+}: {
+  open?: boolean;
+  onClose?: () => void;
+}) {
   const nodes = useStore((s) => s.nodes);
   const currentRkey = useStore((s) => s.currentRkey);
   const selectNode = useStore((s) => s.selectNode);
@@ -60,34 +66,59 @@ export function Sidebar() {
     [nodes],
   );
 
+  // On mobile the sidebar is an overlay drawer; selecting/creating a chat
+  // should dismiss it so the chat is visible.
+  const handleSelect = (rkey: string) => {
+    selectNode(rkey);
+    onClose?.();
+  };
+  const handleNewChat = () => {
+    newRootChat();
+    onClose?.();
+  };
+
   return (
-    <aside className="flex min-h-0 w-64 shrink-0 flex-col border-r border-black/10 dark:border-white/10">
-      <div className="p-3">
-        <button
-          onClick={newRootChat}
-          className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          + New chat
-        </button>
-      </div>
-      <div className="flex-1 overflow-y-auto px-2 pb-3">
-        {roots.length === 0 ? (
-          <p className="px-3 py-2 text-sm text-black/50 dark:text-white/50">
-            No chats yet.
-          </p>
-        ) : (
-          roots.map((r) => (
-            <NodeRow
-              key={r.rkey}
-              node={r}
-              depth={0}
-              childrenOf={childrenOf}
-              currentRkey={currentRkey}
-              onSelect={selectNode}
-            />
-          ))
-        )}
-      </div>
-    </aside>
+    <>
+      {/* Backdrop (mobile only, when drawer is open) */}
+      <div
+        onClick={onClose}
+        aria-hidden
+        className={`absolute inset-0 z-30 bg-black/40 md:hidden ${
+          open ? "" : "pointer-events-none opacity-0"
+        } transition-opacity`}
+      />
+      <aside
+        className={`absolute inset-y-0 left-0 z-40 flex min-h-0 w-64 shrink-0 flex-col border-r border-black/10 bg-white transition-transform dark:border-white/10 dark:bg-neutral-950 md:static md:translate-x-0 md:bg-transparent md:transition-none md:dark:bg-transparent ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="p-3">
+          <button
+            onClick={handleNewChat}
+            className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            + New chat
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-2 pb-3">
+          {roots.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-black/50 dark:text-white/50">
+              No chats yet.
+            </p>
+          ) : (
+            roots.map((r) => (
+              <NodeRow
+                key={r.rkey}
+                node={r}
+                depth={0}
+                childrenOf={childrenOf}
+                currentRkey={currentRkey}
+                onSelect={handleSelect}
+              />
+            ))
+          )}
+        </div>
+      </aside>
+    </>
   );
 }

@@ -12,6 +12,7 @@ export default function Home() {
   const me = useStore((s) => s.me);
   const bootstrap = useStore((s) => s.bootstrap);
   const [showSettings, setShowSettings] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     void bootstrap();
@@ -29,9 +30,12 @@ export default function Home() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <TopBar onOpenSettings={() => setShowSettings(true)} />
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <Sidebar />
+      <TopBar
+        onOpenSettings={() => setShowSettings(true)}
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
+      />
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <ChatView />
       </div>
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
