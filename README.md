@@ -8,6 +8,9 @@ highlighted to go deeper still.
 
 - **Nested, linked chats.** Highlight → "Dig in ↳" → a child chat scoped to that
   phrase, seeded with the surrounding context.
+- **Markdown replies.** Assistant messages render as sanitized Markdown
+  (headings, lists, code blocks, links). Highlights re-wrap correctly over the
+  rendered output, so you can still dig into any phrase.
 - **Your data, your repo.** Chats are stored as records in your own
   [AT Protocol](https://atproto.com) PDS (the network behind Bluesky) — not in
   an app database. Sign in with your Bluesky / atproto handle.

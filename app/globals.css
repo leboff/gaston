@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 :root {
   --background: #ffffff;
@@ -23,4 +24,19 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Clickable highlight marks injected into rendered messages (lib/markdown.ts). */
+.gaston-anchor {
+  cursor: pointer;
+  border-radius: 0.2rem;
+  padding: 0 0.1rem;
+  color: #000;
+  background-color: rgb(252 211 77 / 0.8);
+  text-decoration: underline;
+  text-decoration-color: rgb(217 119 6 / 0.7);
+  text-underline-offset: 2px;
+}
+.gaston-anchor:hover {
+  background-color: rgb(252 211 77);
 }

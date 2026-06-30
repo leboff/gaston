@@ -11,8 +11,11 @@
   "dependencies": {
     "@atproto/api": "^0.20.23",
     "@atproto/oauth-client-node": "^0.4.3",
+    "@tailwindcss/typography": "^0.5.20",
     "better-sqlite3": "^12.11.1",
+    "dompurify": "^3.4.11",
     "iron-session": "^8.0.4",
+    "marked": "^18.0.5",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",

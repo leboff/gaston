@@ -50,52 +50,27 @@ export function breadcrumbTrail(
 export function selectionOffsets(
   container: HTMLElement,
   range: Range,
-): { start: number; end: number } | null {
+): { start: number; end: number; text: string } | null {
   if (range.collapsed) return null;
   if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
     return null;
   }
+  // Count only real text-node characters (textContent), not the synthetic
+  // newlines Range.toString() inserts at block boundaries — this is the same
+  // coordinate system the DOM highlighter walks, so selection capture and
+  // highlight rendering stay in sync even when the message is rendered markdown.
   const pre = document.createRange();
-  pre.selectNodeContents(container);
+  pre.setStart(container, 0);
   pre.setEnd(range.startContainer, range.startOffset);
-  const start = pre.toString().length;
-  const end = start + range.toString().length;
+  const start = pre.cloneContents().textContent?.length ?? 0;
+  const text = range.cloneContents().textContent ?? "";
+  const end = start + text.length;
   if (end <= start) return null;
-  return { start, end };
+  return { start, end, text };
 }
 
 export interface HighlightSpan {
   start: number;
   end: number;
   childRkey: string;
-}
-
-export type Segment =
-  | { text: string }
-  | { text: string; childRkey: string };
-
-/**
- * Split a message's text into ordered segments, marking the spans that have
- * spawned child chats. Overlapping or drifted anchors are dropped.
- */
-export function segmentText(text: string, spans: HighlightSpan[]): Segment[] {
-  const valid = spans
-    .filter(
-      (s) =>
-        s.start >= 0 &&
-        s.end <= text.length &&
-        s.end > s.start,
-    )
-    .sort((a, b) => a.start - b.start);
-
-  const segments: Segment[] = [];
-  let cursor = 0;
-  for (const span of valid) {
-    if (span.start < cursor) continue; // overlaps a previous highlight — skip
-    if (span.start > cursor) segments.push({ text: text.slice(cursor, span.start) });
-    segments.push({ text: text.slice(span.start, span.end), childRkey: span.childRkey });
-    cursor = span.end;
-  }
-  if (cursor < text.length) segments.push({ text: text.slice(cursor) });
-  return segments;
 }

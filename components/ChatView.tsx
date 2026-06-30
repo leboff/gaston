@@ -6,6 +6,7 @@ import { MessageBubble } from "./MessageBubble";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { ModelPicker } from "./ModelPicker";
 import { indexByRkey, breadcrumbTrail, selectionOffsets, type HighlightSpan } from "@/lib/tree";
+import { renderMessageHtml } from "@/lib/markdown";
 
 interface PopoverState {
   x: number;
@@ -102,7 +103,7 @@ export function ChatView() {
       x: rect.left + rect.width / 2,
       y: rect.top,
       messageId: msgEl.dataset.msgId!,
-      text: sel.toString(),
+      text: offsets.text,
       start: offsets.start,
       end: offsets.end,
     });
@@ -165,8 +166,17 @@ export function ChatView() {
 
         {streaming && (
           <div className="flex justify-start">
-            <div className="max-w-[80%] rounded-2xl bg-black/[.06] dark:bg-white/[.08] px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-              {streamingText || <span className="opacity-50">Thinking…</span>}
+            <div className="max-w-[80%] rounded-2xl bg-black/[.06] dark:bg-white/[.08] px-4 py-2.5 text-[15px] leading-relaxed break-words">
+              {streamingText ? (
+                <div
+                  className="prose prose-sm dark:prose-invert max-w-none prose-pre:my-2 prose-p:my-1.5 prose-headings:my-2 prose-ul:my-1.5 prose-ol:my-1.5"
+                  dangerouslySetInnerHTML={{
+                    __html: renderMessageHtml(streamingText, false, []),
+                  }}
+                />
+              ) : (
+                <span className="opacity-50">Thinking…</span>
+              )}
             </div>
           </div>
         )}
