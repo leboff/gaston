@@ -67,10 +67,27 @@ export function ChatView() {
     setPopover(null);
   }
 
-  // Keep scrolled to the latest message / streaming output.
+  // Auto-follow new output only while the user is pinned to the bottom, so
+  // scrolling up to read earlier text isn't yanked back down mid-stream.
+  const atBottomRef = useRef(true);
+  function handleScroll() {
+    const el = scrollRef.current;
+    if (el) atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }
+
+  // Jump to the bottom when switching chats.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [node?.messages.length, streamingText, currentRkey]);
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+    atBottomRef.current = true;
+  }, [currentRkey]);
+
+  // Follow streaming/new messages only if still pinned to the bottom.
+  useEffect(() => {
+    if (!atBottomRef.current) return;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [node?.messages.length, streamingText]);
 
   function handleMouseUp() {
     const sel = window.getSelection();
@@ -126,6 +143,7 @@ export function ChatView() {
     const text = input.trim();
     if (!text || streaming) return;
     setInput("");
+    atBottomRef.current = true; // sending always snaps to the latest
     void sendMessage(text);
   }
 
@@ -147,6 +165,7 @@ export function ChatView() {
       <div
         ref={scrollRef}
         onMouseUp={handleMouseUp}
+        onScroll={handleScroll}
         className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-6"
       >
         {node.anchor && (
