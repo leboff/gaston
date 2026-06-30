@@ -69,6 +69,14 @@ The whole tree is the set of all `chatNode` records; it is rebuilt client-side b
 linking `parent` rkeys. Breadcrumbs = walk parent chain. Type defs:
 `types/chat.ts`. (`$type` is added on write in `lib/atproto/repo.ts`.)
 
+**Singleton `app.gaston.userPrefs`** (schema: `lexicons/app/gaston/userPrefs.json`,
+rkey always `self`): the user's **personalization instructions + manual memory**,
+injected as a leading `system` message into every prompt. The payload is
+**encrypted client-side** (AES-GCM; key derived from a user passphrase via PBKDF2)
+because atproto repos are public — the record stores only `{ enc, salt, iv }` and
+the server/PDS never see plaintext. Types: `types/prefs.ts`; crypto: `lib/crypto.ts`;
+repo CRUD: `lib/atproto/prefs.ts`.
+
 ## Auth model
 
 Per-user atproto OAuth (`@atproto/oauth-client-node`). Public client
@@ -90,7 +98,15 @@ returns an authed `Agent`, or null. Session cookie via iron-session
 - `app/page.tsx` — client shell; bootstraps the store; gates on auth
   (loading → `LoginScreen` → app).
 - `lib/store.ts` — zustand store: `bootstrap`, `sendMessage`, `digIn`,
-  `newRootChat`, key/model persistence, streaming state. The hub of client logic.
+  `newRootChat`, key/model persistence, streaming state, and prefs
+  (`unlockPrefs`/`savePrefs` + `personalizationMessage` injection). The hub of
+  client logic.
+- `lib/crypto.ts` — client-side AES-GCM encryption for user prefs (PBKDF2 key from
+  passphrase; `encryptJson`/`decryptJson`, `exportKeyB64`/`importKeyB64`).
+- `lib/atproto/prefs.ts` — `getPrefs`/`putPrefs` for the singleton
+  `app.gaston.userPrefs` record. API route: `app/api/repo/prefs/route.ts`.
+- `components/Settings.tsx` — API key + the encrypted personalization/memory panel
+  (set-passphrase / locked / unlocked states).
 - `components/ChatView.tsx` — messages, selection→"Dig in" popover, breadcrumbs,
   composer, streaming bubble, **scroll-follow logic**.
 - `components/MessageBubble.tsx` — renders a message via `renderMessageHtml`
@@ -136,6 +152,12 @@ returns an authed `Agent`, or null. Session cookie via iron-session
   start`) instead.
 - **rkeys** are `crypto.randomUUID()`. **Never** commit `.env*` except
   `.env.example` (the `.gitignore` has a `!.env.example` exception).
+- **atproto repos are PUBLIC** — anyone can fetch a user's records unauthenticated.
+  Anything sensitive stored in the PDS (e.g. `userPrefs`) MUST be encrypted in the
+  browser first (`lib/crypto.ts`); only ciphertext leaves the client. The derived
+  AES key is cached in `localStorage` (`gaston.prefs.key`) and **never** written to
+  the PDS; losing the passphrase = unrecoverable data. The chat-injection order in
+  `sendMessage` is `personalization → dig-in context → conversation`.
 
 ## Running & verifying
 
@@ -184,6 +206,12 @@ returns an authed `Agent`, or null. Session cookie via iron-session
   coordinates to keep dig-in working over markup.
 - Chat scroll: pin-to-bottom auto-follow (don't yank while reading).
 - Project pushed straight to `main`, no PR (owner preference).
+- Personalization + manual memory stored in the user's PDS as a singleton
+  `app.gaston.userPrefs` record, **encrypted client-side** (AES-GCM, passphrase-
+  derived key). Chosen over localStorage (syncs across devices, matches "storage =
+  your PDS") and over plaintext (repos are public). Injected as a leading `system`
+  message into every prompt. First version is manual memory only — no automatic
+  LLM extraction.
 
 ## Preferences (owner)
 

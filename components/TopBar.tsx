@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store";
 export function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const me = useStore((s) => s.me);
   const apiKey = useStore((s) => s.apiKey);
+  const prefsLocked = useStore((s) => s.prefsLocked);
   const logout = useStore((s) => s.logout);
 
   return (
@@ -23,6 +24,14 @@ export function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
           Settings
           {!apiKey && (
             <span className="ml-1 inline-block h-2 w-2 rounded-full bg-amber-500 align-middle" />
+          )}
+          {apiKey && prefsLocked && (
+            <span
+              className="ml-1 align-middle text-xs"
+              title="Personalization is locked — unlock it in Settings"
+            >
+              🔒
+            </span>
           )}
         </button>
         <button
